@@ -1,0 +1,17 @@
+server:
+  servlet:
+    context-path: /api
+spring:
+  main:
+    # the next property is dynamically loaded with gradle instead to avoid conflicts servlet/reactive
+    # web-application-type: reactive
+    allow-bean-definition-overriding: true
+  webflux:
+    base-path: /api
+  datasource:
+    # consult h2 console at http://localhost:8080/h2-console
+    url: jdbc:h2:mem:sse
+    username: user
+  h2:
+    console:
+      enabled: true
