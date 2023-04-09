@@ -1,6 +1,10 @@
 server:
   servlet:
     context-path: /api
+    session:
+      timeout: 3600s
+      cookie:
+        max-age: 3600s
 spring:
   main:
     # the next property is dynamically loaded with gradle instead to avoid conflicts servlet/reactive

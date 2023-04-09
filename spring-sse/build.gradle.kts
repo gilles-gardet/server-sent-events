@@ -17,7 +17,6 @@ repositories {
 }
 
 dependencies {
-//    implementation("ch.qos.logback:logback-classic:1.2.9")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
     implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")

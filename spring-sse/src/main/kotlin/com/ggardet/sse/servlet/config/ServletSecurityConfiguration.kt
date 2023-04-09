@@ -7,17 +7,20 @@ import org.springframework.http.HttpMethod
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
 
 @Profile("servlet")
 @Configuration
-@EnableWebSecurity
+@EnableWebSecurity(debug = true)
 class ServletSecurityConfiguration {
     @Bean
     fun filterChain(httpSecurity: HttpSecurity): SecurityFilterChain =
-        httpSecurity.csrf().disable()
+        httpSecurity
+            .cors().disable()
+            .csrf().disable()
             .authorizeHttpRequests { exchanges -> exchanges
-                .requestMatchers(HttpMethod.GET, "/sse/reactive/notifications").permitAll()
+                .requestMatchers(HttpMethod.GET, "/sse/servlet/notifications").permitAll()
                 .anyRequest().authenticated() }
             .httpBasic(Customizer.withDefaults())
             .formLogin(Customizer.withDefaults())

@@ -9,7 +9,7 @@ import {
 } from "@angular/core";
 import { SseService } from "./sse.service";
 import { Message } from "primeng/api";
-import { Observable, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { Observable, of, Subject, switchMap, takeUntil, tap } from "rxjs";
 import {
   AbstractControl,
   FormControl,
@@ -43,6 +43,7 @@ import { RippleModule } from "primeng/ripple";
         height: 100%;
         width: 100%;
       }
+
       .container {
         display: flex;
         justify-content: center;
@@ -50,6 +51,7 @@ import { RippleModule } from "primeng/ripple";
         align-items: center;
         background: grey;
         flex-direction: column;
+
         &__message {
           position: fixed;
           top: 0;
@@ -57,6 +59,7 @@ import { RippleModule } from "primeng/ripple";
           width: 40rem;
           padding: 1rem;
         }
+
         &__listen-channel,
         &__fire-channel {
           display: flex;
@@ -70,6 +73,7 @@ import { RippleModule } from "primeng/ripple";
             align-items: center;
           }
         }
+
         &__event {
           display: flex;
           gap: 1rem;
@@ -143,9 +147,17 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
   protected messages: Message[] = [];
   protected formGroup: FormGroup = this._initFormControls();
   private readonly destroy$ = new Subject<void>();
+  private readonly serverUri = "/api/sse/servlet";
 
   ngOnInit(): void {
     this._listenChannelEvents$().subscribe(this._handleReceivedEvent());
+    of({})
+      .pipe(switchMap(() => this._listenSessionEvents$()))
+      .subscribe({
+        next: (event: string): void => console.log(event),
+        error: (error): void => console.error(error),
+        complete: (): void => console.log("complete"),
+      });
   }
 
   ngAfterViewInit(): void {
@@ -187,7 +199,13 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
 
   private _listenChannelEvents$(channel?: 1 | 2): Observable<string> {
     return this.eventService
-      .listenEvents$(channel ?? 1)
+      .listenEvents$(`${this.serverUri}/notifications?eventId=${channel ?? 1}`)
+      .pipe(takeUntil(this.destroy$));
+  }
+
+  private _listenSessionEvents$(): Observable<any> {
+    return this.eventService
+      .listenEvents$(`${this.serverUri}/session`)
       .pipe(takeUntil(this.destroy$));
   }
 
@@ -212,14 +230,17 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
         summary: "Success",
         detail: JSON.parse(event).message,
       };
-      this.messages = [...this.messages, notification];
+      const copy: Message[] = structuredClone(this.messages);
+      copy.push(notification);
+      this.messages = copy;
       this.changeDetectorRef.detectChanges();
     };
   }
 
   protected fireEvent(): void {
+    const uri = `${this.serverUri}/notifications`;
     this.eventService
-      .fireEvent$(this.message?.value, this.fireChannel?.value)
+      .fireEvent$(uri, this.message?.value, this.fireChannel?.value)
       .subscribe();
   }
 

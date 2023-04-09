@@ -19,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event
 import java.io.IOException
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -27,7 +28,7 @@ import java.util.concurrent.TimeUnit
 @RequestMapping("/sse/servlet")
 class EventController {
     private val executorService: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-    private val emitters = mutableMapOf<String, SseEmitter>()
+    private val emitters = ConcurrentHashMap<String, MutableList<SseEmitter>>()
     private val objectMapper: ObjectMapper = ObjectMapper()
     private val log = KotlinLogging.logger {}
 
@@ -37,18 +38,30 @@ class EventController {
         val timeout: LocalDateTime = user.authDate.plusSeconds(5)
         val delay: Long = Duration.between(LocalDateTime.now(), timeout).seconds;
         val emitter = SseEmitter()
-        val command = {
-            val event = event().id(user.email).data("$timeout - done")
-            emitter.send(event)
-            emitter.complete()
-        }
-        executorService.schedule(command, delay, TimeUnit.SECONDS)
+        val firstCommand = fireSessionEvent(user, timeout, emitter)
+        executorService.schedule(firstCommand, delay, TimeUnit.SECONDS)
+        val lastCommand = fireSessionEvent(user, timeout, emitter, true)
+        executorService.schedule(lastCommand, delay + 5, TimeUnit.SECONDS)
         return emitter
     }
 
-    @GetMapping("/notifications")
+    private fun fireSessionEvent(
+        user: CustomUser,
+        timeout: LocalDateTime,
+        emitter: SseEmitter,
+        shouldComplete: Boolean = false,
+    ): () -> Unit = {
+        val type = if (shouldComplete) "complete" else "message"
+        val event = event().id(user.email).name(type).data("$timeout - $type")
+        emitter.send(event)
+        if (shouldComplete) {
+            emitter.complete()
+        }
+    }
+
+    @GetMapping("/notifications", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun listenNotifications(@RequestParam eventId: String): SseEmitter? {
-        val emitter = SseEmitter(TimeUnit.MINUTES.toMillis(10))
+        val emitter = SseEmitter(Duration.ofHours(8).toMillis())
         emitter.onCompletion {
             log.info("SSE connection closed")
             emitters.remove(eventId)
@@ -62,7 +75,7 @@ class EventController {
             log.error("Listen SSE exception", throwable)
             emitters.remove(eventId)
         }
-        emitters[eventId] = emitter
+        emitters.computeIfAbsent(eventId) { mutableListOf() }.add(emitter)
         return emitter
     }
 
@@ -71,20 +84,16 @@ class EventController {
     fun fireNotification(
         @RequestParam eventId: String,
         @RequestBody notification: Notification
-    ) {
-        emitters[eventId]?.let { handleEmitter(notification, it, eventId) }
-    }
+    ) = emitters[eventId]?.forEach { handleEmitter(notification, it) }
 
     private fun handleEmitter(
         notification: Notification,
         sseEmitter: SseEmitter,
-        eventId: String
     ) = try {
         val data = objectMapper.writeValueAsString(notification)
-        val sseEventBuilder = event().name("message").data(data)
+        val sseEventBuilder = event().data(data)
         sseEmitter.send(sseEventBuilder)
     } catch (ioException: IOException) {
         log.error("Send SSE exception", ioException)
-        emitters.remove(eventId)
     }
 }
