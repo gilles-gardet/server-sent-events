@@ -1,3 +1,3 @@
-package com.ggardet.sse.common.model
+package com.ggardet.sse.domain
 
 data class Notification(val message: String)

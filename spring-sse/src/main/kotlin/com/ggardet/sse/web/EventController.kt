@@ -1,9 +1,10 @@
-package com.ggardet.sse.servlet.web
+package com.ggardet.sse.web
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.ggardet.sse.common.model.CustomUser
-import com.ggardet.sse.common.model.Notification
+import com.ggardet.sse.domain.Notification
+import com.ggardet.sse.authentication.domain.ServletUser
 import mu.KotlinLogging
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus.ACCEPTED
 import org.springframework.http.MediaType
 import org.springframework.security.core.Authentication
@@ -23,18 +24,21 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import javax.servlet.http.HttpServletResponse
+
+private const val X_ACCEL_BUFFERING = "X-Accel-Buffering"
 
 @RestController
-@RequestMapping("/sse/servlet")
+@RequestMapping
 class EventController {
     private val executorService: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val emitters = ConcurrentHashMap<String, MutableList<SseEmitter>>()
     private val objectMapper: ObjectMapper = ObjectMapper()
     private val log = KotlinLogging.logger {}
 
-    @GetMapping(value = ["/session"], produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun fetchSessionTimeRemaining(authentication: Authentication): SseEmitter? {
-        val user: CustomUser = authentication.principal as CustomUser
+    @GetMapping(value = ["/sse"], produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun fetchSessionTimeRemaining(authentication: Authentication, httpServletResponse: HttpServletResponse): SseEmitter? {
+        val user = authentication.principal as ServletUser
         val timeout: LocalDateTime = user.authDate.plusSeconds(5)
         val delay: Long = Duration.between(LocalDateTime.now(), timeout).seconds;
         val emitter = SseEmitter()
@@ -42,17 +46,20 @@ class EventController {
         executorService.schedule(firstCommand, delay, TimeUnit.SECONDS)
         val lastCommand = fireSessionEvent(user, timeout, emitter, true)
         executorService.schedule(lastCommand, delay + 5, TimeUnit.SECONDS)
+        httpServletResponse.setHeader(HttpHeaders.ACCEPT_ENCODING, "")
+        httpServletResponse.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache")
+        httpServletResponse.setHeader(X_ACCEL_BUFFERING, "no")
         return emitter
     }
 
     private fun fireSessionEvent(
-        user: CustomUser,
+        user: ServletUser,
         timeout: LocalDateTime,
         emitter: SseEmitter,
         shouldComplete: Boolean = false,
     ): () -> Unit = {
         val type = if (shouldComplete) "complete" else "message"
-        val event = event().id(user.email).name(type).data("$timeout - $type")
+        val event = event().id(user.username).name(type).data("$timeout - $type")
         emitter.send(event)
         if (shouldComplete) {
             emitter.complete()
@@ -60,7 +67,7 @@ class EventController {
     }
 
     @GetMapping("/notifications", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun listenNotifications(@RequestParam eventId: String): SseEmitter? {
+    fun listenNotifications(@RequestParam eventId: String, httpServletResponse: HttpServletResponse): SseEmitter? {
         val emitter = SseEmitter(Duration.ofHours(8).toMillis())
         emitter.onCompletion {
             log.info("SSE connection closed")
@@ -76,6 +83,9 @@ class EventController {
             emitters.remove(eventId)
         }
         emitters.computeIfAbsent(eventId) { mutableListOf() }.add(emitter)
+        httpServletResponse.setHeader(HttpHeaders.ACCEPT_ENCODING, "")
+        httpServletResponse.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache")
+        httpServletResponse.setHeader(X_ACCEL_BUFFERING, "no")
         return emitter
     }
 

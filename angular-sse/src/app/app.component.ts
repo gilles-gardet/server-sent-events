@@ -22,6 +22,7 @@ import { InputTextModule } from "primeng/inputtext";
 import { MessagesModule } from "primeng/messages";
 import { RadioButtonModule } from "primeng/radiobutton";
 import { RippleModule } from "primeng/ripple";
+import { environment } from "../environments/environment";
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -147,7 +148,6 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
   protected messages: Message[] = [];
   protected formGroup: FormGroup = this._initFormControls();
   private readonly destroy$ = new Subject<void>();
-  private readonly serverUri = "/api/sse/servlet";
 
   ngOnInit(): void {
     this._listenChannelEvents$().subscribe(this._handleReceivedEvent());
@@ -199,13 +199,15 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
 
   private _listenChannelEvents$(channel?: 1 | 2): Observable<string> {
     return this.eventService
-      .listenEvents$(`${this.serverUri}/notifications?eventId=${channel ?? 1}`)
+      .listenEvents$(
+        `${environment.apiUrl}/notifications?eventId=${channel ?? 1}`
+      )
       .pipe(takeUntil(this.destroy$));
   }
 
   private _listenSessionEvents$(): Observable<any> {
     return this.eventService
-      .listenEvents$(`${this.serverUri}/session`)
+      .listenEvents$(`${environment.apiUrl}/sse`)
       .pipe(takeUntil(this.destroy$));
   }
 
@@ -238,7 +240,7 @@ export class AppComponent implements AfterViewInit, OnInit, OnDestroy {
   }
 
   protected fireEvent(): void {
-    const uri = `${this.serverUri}/notifications`;
+    const uri = `${environment.apiUrl}/notifications`;
     this.eventService
       .fireEvent$(uri, this.message?.value, this.fireChannel?.value)
       .subscribe();

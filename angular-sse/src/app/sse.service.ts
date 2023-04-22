@@ -1,14 +1,11 @@
-import { inject, Injectable, NgZone } from "@angular/core";
-import { Observable, Subscriber } from "rxjs";
-import { HttpClient } from "@angular/common/http";
+import {inject, NgZone} from "@angular/core";
+import {Observable, Subscriber} from "rxjs";
+import {HttpClient} from "@angular/common/http";
 
 interface CustomEventSource extends EventSource {
   oncomplete?: () => void | null | undefined;
 }
 
-@Injectable({
-  providedIn: "root",
-})
 export class SseService {
   private readonly httpClient = inject(HttpClient);
   private readonly ngZone = inject(NgZone);
