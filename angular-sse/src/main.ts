@@ -14,6 +14,7 @@ import { importProvidersFrom, inject } from "@angular/core";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
 import { CommonModule } from "@angular/common";
 import {
+  CanActivateFn,
   PreloadAllModules,
   provideRouter,
   Router,
@@ -22,25 +23,32 @@ import {
   withRouterConfig,
 } from "@angular/router";
 import { catchError, throwError } from "rxjs";
-import { SseService } from "./app/sse.service";
-import {SessionComponent} from "./app/session.component";
+import { SseService } from "./app/sse/sse.service";
+import { AuthenticationService } from "./app/authentication/authentication.service";
+import { AuthenticationComponent } from "./app/authentication/authentication.component";
+import { SseComponent } from "./app/sse/sse.component";
 
-const routes: Routes = [
-  { path: "", component: AppComponent, pathMatch: "full" },
-  { path: "expired", component: SessionComponent, pathMatch: "full" },
-  { path: "invalid", component: SessionComponent, pathMatch: "full" },
-  { path: "**", redirectTo: "" },
-];
+const authenticationGuard: CanActivateFn = (): boolean => {
+  const authService: AuthenticationService = inject(AuthenticationService);
+  const router: Router = inject(Router);
+  if (!!authService.currentUserSubject.getValue()) {
+    return true;
+  }
+  router.navigate(["/authentication"]).catch(console.error);
+  return false;
+};
 
 const authInterceptor: HttpInterceptorFn = (
   httpRequest: HttpRequest<unknown>,
   httpHandlerFn: HttpHandlerFn
 ) => {
   const router: Router = inject(Router);
+  const authService: AuthenticationService = inject(AuthenticationService);
   return httpHandlerFn(httpRequest).pipe(
     catchError((httpErrorResponse: HttpErrorResponse) => {
       if (httpErrorResponse.status === 401) {
-        router.navigate(["/login"]).catch(console.error);
+        authService.logout();
+        router.navigate(["/authentication"]).catch(console.error);
       }
       return throwError(() => httpErrorResponse);
     })
@@ -53,6 +61,7 @@ const xhrInterceptor: HttpInterceptorFn = (
 ) => {
   const xhrHttpRequest: HttpRequest<unknown> = httpRequest.clone({
     headers: httpRequest.headers.set("X-Requested-With", "XMLHttpRequest"),
+    withCredentials: true,
   });
   return httpHandlerFn(xhrHttpRequest);
 };
@@ -72,6 +81,20 @@ const xsrfInterceptor: HttpInterceptorFn = (
   }
   return httpHandlerFn(httpRequest);
 };
+
+const routes: Routes = [
+  {
+    path: "",
+    component: SseComponent,
+    pathMatch: "full",
+    canActivate: [authenticationGuard],
+  },
+  {
+    path: "authentication",
+    component: AuthenticationComponent,
+  },
+  { path: "**", redirectTo: "" },
+];
 
 bootstrapApplication(AppComponent, {
   providers: [
@@ -94,6 +117,7 @@ bootstrapApplication(AppComponent, {
     provideHttpClient(
       withInterceptors([authInterceptor, xhrInterceptor, xsrfInterceptor])
     ),
+    AuthenticationService,
     SseService,
   ],
 }).catch(console.error);

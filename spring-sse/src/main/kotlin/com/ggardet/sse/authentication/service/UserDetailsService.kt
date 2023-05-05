@@ -1,14 +1,13 @@
 package com.ggardet.sse.authentication.service
 
-import com.ggardet.sse.authentication.domain.ServletUser
-import com.ggardet.sse.authentication.mapper.ServletUserMapper
+import com.ggardet.sse.authentication.mapper.UserMapper
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.stereotype.Service
 
 @Service
-class ServletUserDetailsService : UserDetailsService {
+class UserDetailsService : UserDetailsService {
     companion object {
         const val ROLE_ADMIN = "ADMIN"
         const val ROLE_USER = "USER"
@@ -19,7 +18,7 @@ class ServletUserDetailsService : UserDetailsService {
             .password("{noop}user")
             .roles(ROLE_USER, ROLE_ADMIN)
             .build()
-        val servletUser = ServletUser(
+        val servletCustomUser = com.ggardet.sse.authentication.domain.CustomUser(
             user.username,
             user.password,
             user.isEnabled,
@@ -28,6 +27,6 @@ class ServletUserDetailsService : UserDetailsService {
             user.isAccountNonLocked,
             ArrayList(user.authorities)
         )
-        return ServletUserMapper.mapToServletUser(servletUser)
+        return UserMapper.mapToServletUser(servletCustomUser)
     }
 }

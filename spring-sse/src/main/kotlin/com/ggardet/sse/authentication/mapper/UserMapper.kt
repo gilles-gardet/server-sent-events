@@ -1,13 +1,13 @@
 package com.ggardet.sse.authentication.mapper
 
-import com.ggardet.sse.authentication.domain.ServletUser
+import com.ggardet.sse.authentication.domain.CustomUser
 import org.springframework.security.core.userdetails.UserDetails
 
-class ServletUserMapper {
+class UserMapper {
     companion object {
-        fun mapToServletUser(userDetails: UserDetails): ServletUser {
+        fun mapToServletUser(userDetails: UserDetails): CustomUser {
             val username = userDetails.username
-            return ServletUser(
+            return CustomUser(
                 username,
                 userDetails.password,
                 userDetails.isEnabled,

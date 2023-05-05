@@ -1,16 +1,17 @@
 package com.ggardet.sse.authentication.domain
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import org.springframework.security.core.GrantedAuthority
 import org.springframework.security.core.userdetails.UserDetails
 import java.time.LocalDateTime
 
-data class ServletUser(
-    private val username: String,
-    private val password: String,
+data class CustomUser(
+    @JsonIgnore private val username: String,
+    @JsonIgnore private val password: String,
     private val enabled: Boolean,
-    private val accountNonExpired: Boolean,
-    private val credentialsNonExpired: Boolean,
-    private val accountNonLocked: Boolean,
+    @JsonIgnore private val accountNonExpired: Boolean,
+    @JsonIgnore private val credentialsNonExpired: Boolean,
+    @JsonIgnore private val accountNonLocked: Boolean,
     private val authorities: MutableCollection<GrantedAuthority>
 ) : UserDetails {
     val authDate: LocalDateTime = LocalDateTime.now()

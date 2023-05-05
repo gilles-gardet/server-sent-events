@@ -1,12 +1,14 @@
-package com.ggardet.sse.web
+package com.ggardet.sse.event.web
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.ggardet.sse.domain.Notification
-import com.ggardet.sse.authentication.domain.ServletUser
+import com.ggardet.sse.event.domain.Notification
+import com.ggardet.sse.authentication.domain.CustomUser
 import mu.KotlinLogging
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus.ACCEPTED
+import org.springframework.http.HttpStatus.NO_CONTENT
 import org.springframework.http.MediaType
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -28,6 +30,7 @@ import javax.servlet.http.HttpServletResponse
 
 private const val X_ACCEL_BUFFERING = "X-Accel-Buffering"
 
+@PreAuthorize("hasRole('USER')")
 @RestController
 @RequestMapping
 class EventController {
@@ -38,13 +41,13 @@ class EventController {
 
     @GetMapping(value = ["/sse"], produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun fetchSessionTimeRemaining(authentication: Authentication, httpServletResponse: HttpServletResponse): SseEmitter? {
-        val user = authentication.principal as ServletUser
-        val timeout: LocalDateTime = user.authDate.plusSeconds(5)
+        val customUser = authentication.principal as CustomUser
+        val timeout: LocalDateTime = customUser.authDate.plusSeconds(5)
         val delay: Long = Duration.between(LocalDateTime.now(), timeout).seconds;
         val emitter = SseEmitter()
-        val firstCommand = fireSessionEvent(user, timeout, emitter)
+        val firstCommand = fireSessionEvent(customUser, timeout, emitter)
         executorService.schedule(firstCommand, delay, TimeUnit.SECONDS)
-        val lastCommand = fireSessionEvent(user, timeout, emitter, true)
+        val lastCommand = fireSessionEvent(customUser, timeout, emitter, true)
         executorService.schedule(lastCommand, delay + 5, TimeUnit.SECONDS)
         httpServletResponse.setHeader(HttpHeaders.ACCEPT_ENCODING, "")
         httpServletResponse.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache")
@@ -53,13 +56,13 @@ class EventController {
     }
 
     private fun fireSessionEvent(
-        user: ServletUser,
+        customUser: CustomUser,
         timeout: LocalDateTime,
         emitter: SseEmitter,
         shouldComplete: Boolean = false,
     ): () -> Unit = {
         val type = if (shouldComplete) "complete" else "message"
-        val event = event().id(user.username).name(type).data("$timeout - $type")
+        val event = event().id(customUser.username).name(type).data("$timeout - $type")
         emitter.send(event)
         if (shouldComplete) {
             emitter.complete()
@@ -90,7 +93,7 @@ class EventController {
     }
 
     @PostMapping("/notifications")
-    @ResponseStatus(ACCEPTED)
+    @ResponseStatus(NO_CONTENT)
     fun fireNotification(
         @RequestParam eventId: String,
         @RequestBody notification: Notification
